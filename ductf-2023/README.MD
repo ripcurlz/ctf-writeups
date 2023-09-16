@@ -135,7 +135,58 @@ since `127.0.0.1, 172.17.0.1` is the first element and `31.33.33.7` the last ele
 
 ## xxd-server
 
-**still to document**
+looking at the source code, the file `.htacess` shows us, that php code (inside files with a `.php` extension) should be executed by the apache web server.
+to be able to test any solution, we have to add a file called `flag` with some content to the dir where the Dockerfile resides, e.g. with: 
+
+`echo flag > flag`
+
+now build and run the image: 
+
+`docker build -t xxd . && docker run --name xxd --rm -p 127.0.0.1:8080:80 xxd`
+
+you are able to visit the app's frontend now by browsing to http://localhost:8080 where you are greeted by a file upload utility:
+
+![xxd1.png](xxd/images/xxd1.png)
+
+when you select and upload a php file with the following content: 
+```php
+<?php echo test; ?>
+```
+and click on "Click here to view"
+
+the code is unfortunately not properly executed, and this error message is displayed: 
+
+![xxd2.png](xxd/images/xxd2.png)
+
+time to take the same file, but with another file ending, e.g. `.txt`:
+
+![xxd3.png](xxd/images/xxd3.png)
+
+if we look at the `xxd()` function in `index.php` and also compare the result output, we see, that the "xxd" utility splits a provided string into 16 characters each line and does its hex conversion on the lefthand side of the output.
+
+after messing around for some time I had the idea to try to use multiline comments (opening with `/*` and closing with `*\`) in php to span the reading of the flag file into multiple lines.
+
+the shortest php snippet I came up with to read a file and print its content was (probably there are better variants?):
+
+```php
+<?php $a=file('/flag');print_r($a); ?>
+```
+
+ok, this php snippet is longer than 16 characters, so we have to insert the start and end of the comment at the right spot, taking into account that the comment has to begin at the end of each line:
+
+```php
+<?php $a=file(/**/'/flag');/*****/print_r(/******/$a); ?>
+```
+
+to test our theory, we first put this content into a `.txt` file and upload that to see if we put the comment begin and end at the right spot, since testing with a `.php` file is cumbersome since it tries to execute it:
+
+![xxd4.png](xxd/images/xxd4.png)
+
+as you can see in the image above, in each line the comment starts at the end of the line and closes at the beginning of a line. that way, the hex representations are enclosed in the comment on each line and does not hinder the php code to properly execute.
+
+upload the same with a `.php` extension and get the flag :)
+
+![xxd5.png](xxd/images/xxd5.png)
 
 ## grades_grades_grades
 
