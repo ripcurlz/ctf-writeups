@@ -182,7 +182,7 @@ to test our theory, we first put this content into a `.txt` file and upload that
 
 ![xxd4.png](xxd/images/xxd4.png)
 
-as you can see in the image above, in each line the comment starts at the end of the line and closes at the beginning of a line. that way, the hex representations are enclosed in the comment on each line and does not hinder the php code to properly execute.
+as you can see in the image above, in each line the comment starts at the end of the line and closes at the beginning of a line. that way, the hex representations are enclosed in the comment on each line and the php code can properly execute.
 
 upload the same with a `.php` extension and get the flag :)
 
