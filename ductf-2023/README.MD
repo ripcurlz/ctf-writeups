@@ -190,4 +190,99 @@ upload the same with a `.php` extension and get the flag :)
 
 ## grades_grades_grades
 
-**still to document**
+this was a fairly straight forward challenge. on running the app in pycharm and browsing to "signup", you are greeted by the following page where you can sign up:
+
+![1.png](grades_grades_grades/images/1.png)
+
+after signing up and browsing to the "grades" page, we can see "our" grades.
+
+in `routes.py` we can see the following route, where we see the page holding the flag:
+
+```python
+@api.route('/grades_flag', methods=('GET',))
+@requires_teacher
+def flag():
+    return render_template('flag.html', flag="FAKE{real_flag_is_on_the_server}", is_auth=True, is_teacher_role=True)
+```
+
+the hereby referred `@requires_teacher` method is defined in `auth.py`:
+
+```python
+def requires_teacher(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.cookies.get('auth_token')
+        if not token:
+            return jsonify({'message': 'Token is missing'}), 401
+        try:
+            data = decode_token(token)
+            if data is None or data.get("is_teacher") is None:
+                return jsonify({'message': 'Invalid token'}), 401
+            if data['is_teacher']:
+                request.user_data = data
+            else:
+                return jsonify({'message': 'Invalid token'}), 401
+        except jwt.DecodeError:
+            return jsonify({'message': 'Invalid token'}), 401
+
+        return f(*args, **kwargs)
+
+    return decorated
+```
+
+`decode_token(token)` returns a dictionary where the field `is_teacher` has to be `True`, otherwise we will not be able to get to the flag site.
+
+so how can we do this? in `auth.py`, there is a method called `is_teacher_role()`, which checks if the decoded cookie has the field `is_teacher` set to `True`:
+
+```python
+def is_teacher_role():
+    # if user isn't authed at all
+    if 'auth_token' not in request.cookies:
+        return False
+    token = request.cookies.get('auth_token')
+    try:
+        data = decode_token(token)
+        if data.get('is_teacher', False):
+            return True
+    except jwt.DecodeError:
+        return False
+    return False 
+```
+
+if we look at the signup in `routes.py`, we can see that it is determined there which role we have later on, and we get a cookie which determines if we have the "teacher role":
+
+```python
+@api.route('/signup', methods=('POST', 'GET'))
+def signup():
+
+    # make sure user isn't authenticated
+    if is_teacher_role():
+        return render_template('public.html', is_auth=True, is_teacher_role=True)
+    elif is_authenticated():
+        return render_template('public.html', is_auth=True)
+
+    # get form data
+    if request.method == 'POST':
+        jwt_data = request.form.to_dict()
+        jwt_cookie = current_app.auth.create_token(jwt_data)
+        if is_teacher_role():
+            response = make_response(redirect(url_for('api.index', is_auth=True, is_teacher_role=True)))
+        else:
+            response = make_response(redirect(url_for('api.index', is_auth=True)))
+        
+        response.set_cookie('auth_token', jwt_cookie, httponly=True)
+        return response
+
+    return render_template('signup.html')
+```
+
+the lines `jwt_data = request.form.to_dict()` and `jwt_cookie = current_app.auth.create_token(jwt_data)` will just take any parameter we give to it and put it into the jwt token. nice, this is what we need :)
+
+let's intercept the signup POST request, e.g. with ZAP and add `is_teacher=True` to the request:
+
+![2.png](grades_grades_grades/images/2.png)
+
+now we can get the flag, if we browse to "grading tool", since we are the "teacher" now ;):
+
+![3.png](grades_grades_grades/images/3.png)
+
