@@ -55,3 +55,70 @@ the problem is, that we do not know what the name of the flag file is. since it 
 since there is a filter present on the server which files and folder can be read from, i created a dir in the payload at `/app/uploads/abcdef1234567890` beforehand with the `find` command.
 
 after 1-2 minutes after your upload of your python-crafted tar (after the cronjob kicked in) you should be able to read the flag by browsing to the path `/read/abcdef1234567890/abcdef1234567890` in your browser or using any other tool to do a HTTP GET request.
+
+## focus-on-yourself
+
+category: web
+
+looking at the given docker-compose file, you can see that we want to get the environment variable called "FLAG". the application is a flask powered web app where you can upload images, which are then displayed. the content of the pictures is base64 encoded when you look at the source of the html, e.g. in your browser.
+
+trying LFI, i found that the path `/view?image=../../../etc/passwd` gets you the base64 encoded content of the passwd file.
+
+since we want an env var, `/view?image=../../../proc/self/environ` gives the current state of the environment variables. after base64 decoding the result string, you get the flag.
+
+## passwordless
+
+category: web
+
+`@app.route('/<uid>')` returns you the flag on a HTTP POST, if the POST parameter `username` equals `str(uuid.uuid5(uuid.UUID('13371337-1337-1337-1337-133713371337'),'admin123'))`.
+
+possible solution:
+
+```python
+import uuid
+
+import requests
+
+leet = uuid.UUID('13371337-1337-1337-1337-133713371337')
+
+uid = str(uuid.uuid5(leet,'admin123'))
+
+# replace with the needed IP and port
+host = "localhost:1337"
+
+get = requests.get(f"http://{host}/{uid}")
+
+print(get.text)
+```
+
+## wave
+
+category: forensics
+
+the given file was a corrupted wav file. inspecting it with `hexedit` showed that the first 40 bytes had to be repaired. the header of 44 bytes was not matching the WAV header (source: https://en.wikipedia.org/wiki/WAV):
+
+```
+[Master RIFF chunk]
+   FileTypeBlocID  (4 bytes) : Identifier « RIFF »  (0x52, 0x49, 0x46, 0x46)
+   FileSize        (4 bytes) : Overall file size minus 8 bytes
+   FileFormatID    (4 bytes) : Format = « WAVE »  (0x57, 0x41, 0x56, 0x45)
+
+[Chunk describing the data format]
+   FormatBlocID    (4 bytes) : Identifier « fmt␣ »  (0x66, 0x6D, 0x74, 0x20)
+   BlocSize        (4 bytes) : Chunk size minus 8 bytes, which is 16 bytes here  (0x10)
+   AudioFormat     (2 bytes) : Audio format (1: PCM integer, 3: IEEE 754 float)
+   NbrChannels     (2 bytes) : Number of channels
+   Frequence       (4 bytes) : Sample rate (in hertz)
+   BytePerSec      (4 bytes) : Number of bytes to read per second (Frequence * BytePerBloc).
+   BytePerBloc     (2 bytes) : Number of bytes per block (NbrChannels * BitsPerSample / 8).
+   BitsPerSample   (2 bytes) : Number of bits per sample
+
+[Chunk containing the sampled data]
+   DataBlocID      (4 bytes) : Identifier « data »  (0x64, 0x61, 0x74, 0x61)
+   DataSize        (4 bytes) : SampledData size
+   SampledData
+```
+
+after correction of the header bytes, the audio file could be played. it seems to be morsecode!
+
+with e.g. this site: https://morsecode.world/international/decoder/audio-decoder-adaptive.html, one could upload the wav file which then gave the flag after converting the morsecode to readable letters.
